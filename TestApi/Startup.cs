@@ -1,3 +1,5 @@
+using Amazon.DynamoDBv2;
+using Amazon.Kinesis;
 using Amazon.SQS;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -31,7 +33,11 @@ namespace TestApi
 
             var awsOptions = Configuration.GetAWSOptions();
             services.AddDefaultAWSOptions(awsOptions);
+
             services.AddAWSService<IAmazonSQS>(ServiceLifetime.Singleton);
+
+            services.AddAWSService<IAmazonDynamoDB>(ServiceLifetime.Singleton);
+            services.AddAWSService<IAmazonKinesis>(ServiceLifetime.Singleton);
 
             services.Configure<QueueSettings>(Configuration.GetSection(nameof(QueueSettings)));
         }
