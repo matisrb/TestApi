@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TestApi.Common;
@@ -77,26 +78,19 @@ namespace TestApi.Controllers
         {
             bool sourceBucketExists = await _s3bucketClient.DoesS3BucketExistAsync("s3://source-bucket");
 
-            var putObjectRequest = new PutObjectRequest
-            {
-                ContentBody = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor " +
-                              "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco",
-                BucketName = "source-bucket",
-                Key = "Lorem Ipsum"
-            };
-            
-            var bucketResponse = await _s3bucketClient.PutObjectAsync(putObjectRequest, CancellationToken.None);           
+            await _s3bucketClient.UploadObjectFromFilePathAsync("source-bucket", "LoremIpsumFile", @"Data/BucketTest.txt", null, CancellationToken.None);
+            await _s3bucketClient.UploadObjectFromFilePathAsync("source-bucket", "SecondFile", @"Data/SecondTest.txt", null, CancellationToken.None);
         }
 
-        [HttpGet("my-bucket")]
-        public async Task<string> GetBucket()
+        [HttpGet("my-bucket/{key}")]
+        public async Task<string> GetBucket(string key)
         {
-            bool sourceBucketExists = await _s3bucketClient.DoesS3BucketExistAsync("s3://source-bucket4");
+            bool sourceBucketExists = await _s3bucketClient.DoesS3BucketExistAsync("s3://source-bucket");
 
             var getObjectRequest = new GetObjectRequest
             {
                 BucketName = "source-bucket",
-                Key = "Lorem Ipsum"
+                Key = key
             };
 
             var bucketResponse = await _s3bucketClient.GetObjectAsync(getObjectRequest, CancellationToken.None);

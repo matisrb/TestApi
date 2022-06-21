@@ -26,9 +26,9 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
 
-  test.sqs.sns.builder:
+  test.aws.builder:
     image: mesosphere/aws-cli
-    container_name: test.sqs.sns.builder
+    container_name: test.aws.builder
     volumes:
       - ./dev_env:/project/dev_env
     environment:
@@ -61,9 +61,6 @@ services:
 
         aws --endpoint-url=http://test.localstack:4566 s3 ls
 
-        aws --endpoint-url=http://test.localstack:4566 kinesis create-stream \
-            --stream-name testsamplestream \
-            --shard-count 1
       "
     depends_on:
       - test.localstack

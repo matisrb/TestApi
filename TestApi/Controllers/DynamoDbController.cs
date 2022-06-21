@@ -27,16 +27,20 @@ namespace TestApi.Controllers
         [HttpPost("music")]
         public async Task<IActionResult> Post(MusicCollection musicCollection)
         {
-            var amazonDynamoDBConfig = new AmazonDynamoDBConfig();
-            amazonDynamoDBConfig.ServiceURL = "http://test.localstack:4566";
-            amazonDynamoDBConfig.FastFailRequests = true; 
+            var amazonDynamoDBConfig = new AmazonDynamoDBConfig
+            {
+                ServiceURL = "http://test.localstack:4566"
+            };
+
             var amazonDynamoDBClient = new AmazonDynamoDBClient(amazonDynamoDBConfig);
 
-            var item = new Dictionary<string, AttributeValue>();
-            item.Add("Artist", new AttributeValue { S = musicCollection.Artist });
-            item.Add("AlbumTitle", new AttributeValue { S = musicCollection.AlbumTitle });
-            item.Add("SongTitle", new AttributeValue { S = musicCollection.SongTitle });
-            
+            var item = new Dictionary<string, AttributeValue>
+            {
+                { "Artist", new AttributeValue { S = musicCollection.Artist } },
+                { "AlbumTitle", new AttributeValue { S = musicCollection.AlbumTitle } },
+                { "SongTitle", new AttributeValue { S = musicCollection.SongTitle } }
+            };
+
             var putItemRequest = new PutItemRequest()
             {
                 TableName = "MusicCollection",
@@ -46,6 +50,41 @@ namespace TestApi.Controllers
             await amazonDynamoDBClient.PutItemAsync(putItemRequest);     
 
             return Created("", JsonConvert.SerializeObject(musicCollection));
+        }       
+
+        [HttpGet("{artist}/{song}")]
+        public async Task<IActionResult> Get(string artist, string song)
+        {
+            var amazonDynamoDBConfig = new AmazonDynamoDBConfig
+            {
+                ServiceURL = "http://test.localstack:4566",
+                FastFailRequests = true
+            };
+            var amazonDynamoDBClient = new AmazonDynamoDBClient(amazonDynamoDBConfig);
+
+            var key = new Dictionary<string, AttributeValue>
+            {
+                { "Artist", new AttributeValue(s: artist) },
+                { "SongTitle", new AttributeValue(s: song) }
+            };
+
+            var request = new GetItemRequest
+            {
+                TableName = "MusicCollection",
+                Key = key,
+                AttributesToGet = new List<string> { "Artist", "AlbumTitle", "SongTitle" }
+            };
+
+            GetItemResponse itemResponse = await amazonDynamoDBClient.GetItemAsync(request);
+
+            var music = new MusicCollection
+            {
+                Artist = itemResponse.Item["Artist"].S,
+                AlbumTitle = itemResponse.Item["AlbumTitle"].S,
+                SongTitle = itemResponse.Item["SongTitle"].S
+            };
+
+            return Ok(music);
         }
 
         [HttpPost("populate")]
@@ -55,10 +94,10 @@ namespace TestApi.Controllers
             amazonDynamoDBConfig.ServiceURL = "http://test.localstack:4566";
             amazonDynamoDBConfig.FastFailRequests = true;
             var amazonDynamoDBClient = new AmazonDynamoDBClient(amazonDynamoDBConfig);
-          
+
             var writeRequests = new List<WriteRequest>();
 
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 15; i++)
             {
                 var item = new Dictionary<string, AttributeValue>
                 {
@@ -71,7 +110,7 @@ namespace TestApi.Controllers
                 {
                     PutRequest = new PutRequest
                     {
-                        Item = item                        
+                        Item = item
                     }
                 };
 
@@ -89,93 +128,10 @@ namespace TestApi.Controllers
                 RequestItems = requestItems
             };
 
-
             var batchWriteResponse = await amazonDynamoDBClient.BatchWriteItemAsync(batchWriteRequest, CancellationToken.None);
 
-            return Ok($"5 Rows added");
-        }
-
-        [HttpGet("{artist}/{song}")]
-        public async Task<IActionResult> Get(string artist, string song)
-        {
-            var amazonDynamoDBConfig = new AmazonDynamoDBConfig
-            {
-                ServiceURL = "http://test.localstack:4566",
-                FastFailRequests = true
-            };
-            var amazonDynamoDBClient = new AmazonDynamoDBClient(amazonDynamoDBConfig);
-
-            var key = new Dictionary<string, AttributeValue>();
-            key.Add("Artist", new AttributeValue(s: artist));
-            key.Add("SongTitle", new AttributeValue(s: song));
-
-            var request = new GetItemRequest
-            {
-                TableName = "MusicCollection",
-                Key = key,
-                AttributesToGet = new List<string> { "Artist", "AlbumTitle", "SongTitle" }
-            };
-
-            GetItemResponse itemResponse = await amazonDynamoDBClient.GetItemAsync(request);
-
-            var music = new MusicCollection();
-            music.Artist = itemResponse.Item["Artist"].S;
-            music.AlbumTitle = itemResponse.Item["AlbumTitle"].S;
-            music.SongTitle = itemResponse.Item["SongTitle"].S;            
-
-            return Ok(music);
-        }
-
-        [HttpPost("export")]
-        public async Task<IActionResult> ExportToKinesis()
-        {
-            var amazonDynamoDBConfig = new AmazonDynamoDBConfig
-            {
-                ServiceURL = "http://test.localstack:4566",
-                FastFailRequests = true
-            };
-            var amazonDynamoDBClient = new AmazonDynamoDBClient(amazonDynamoDBConfig);
-
-            var config = new AmazonKinesisConfig
-            {
-                ServiceURL = "http://test.localstack:4566"
-            };
-
-            var amazonKinesis = new AmazonKinesisClient(config);
-
-            var describeTable = await amazonDynamoDBClient.DescribeTableAsync("MusicCollection");
-            var tableArn = describeTable.Table.TableArn;                     
-
-            try
-            {
-                var describeStreamRequest = new Amazon.Kinesis.Model.DescribeStreamRequest
-                {
-                    StreamName = "testsamplestream"
-                };
-
-                var streamResponse = await amazonKinesis.DescribeStreamAsync(describeStreamRequest, CancellationToken.None);
-                var enableKinesisStreamingDestinationRequest = new EnableKinesisStreamingDestinationRequest
-                {
-                    StreamArn = streamResponse.StreamDescription.StreamARN,
-                    TableName = "MusicCollection"
-                };
-
-                var enableKinesisStreaming = await amazonDynamoDBClient.EnableKinesisStreamingDestinationAsync(enableKinesisStreamingDestinationRequest,
-                                                                                              CancellationToken.None);
-                var describeKinesisStreaming = new DescribeKinesisStreamingDestinationRequest
-                {
-                    TableName = "MusicCollection"
-                };
-                var pp = await amazonDynamoDBClient.DescribeKinesisStreamingDestinationAsync(describeKinesisStreaming, CancellationToken.None);
-            }
-            catch (Exception exc)
-            {
-                var cc = exc;
-                throw;
-            }            
-
-            return Ok();
-        }
+            return Ok($"15 Rows added");
+        }       
     }
 }
 
